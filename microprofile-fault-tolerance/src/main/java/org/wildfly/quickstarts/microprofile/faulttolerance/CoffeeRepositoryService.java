@@ -16,11 +16,14 @@
  */
 package org.wildfly.quickstarts.microprofile.faulttolerance;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Random;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
+
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -70,6 +73,14 @@ public class CoffeeRepositoryService {
                 .limit(2)
                 .collect(Collectors.toList());
     }
+
+    public Coffee getOrder(){
+
+        //Coffee order = coffeeList.get(2);
+        Coffee order = coffeeList.get((int )(Math.random() * coffeeList.size() + 1));
+        return order;
+    }
+
 
     @CircuitBreaker(requestVolumeThreshold = 4)
     public Integer getAvailability(Coffee coffee) {

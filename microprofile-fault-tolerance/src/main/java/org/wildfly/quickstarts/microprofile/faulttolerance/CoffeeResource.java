@@ -16,10 +16,18 @@
  */
 package org.wildfly.quickstarts.microprofile.faulttolerance;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -28,12 +36,17 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+
+import org.eclipse.microprofile.faulttolerance.Bulkhead;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
+import org.eclipse.microprofile.faulttolerance.exceptions.BulkheadException;
 import org.jboss.logging.Logger;
 import jakarta.ws.rs.PathParam;
+
+import static java.lang.Thread.sleep;
 
 /**
  * A JAX-RS resource that provides information about kinds of coffees we have on store and numbers of packages available.
@@ -44,12 +57,15 @@ import jakarta.ws.rs.PathParam;
 @Path("/coffee")
 @Produces(MediaType.APPLICATION_JSON)
 @ApplicationScoped
-public class CoffeeResource {
+public class CoffeeResource implements Callable {
 
     private static final Logger LOGGER = Logger.getLogger(CoffeeResource.class);
 
     @Inject
     CoffeeRepositoryService coffeeRepository;
+
+    @Inject
+    CoffeeResource coffeeResource;
 
     private AtomicLong counter = new AtomicLong(0);
 
@@ -148,6 +164,32 @@ public class CoffeeResource {
         }
     }
 
+
+    @GET
+    @Path("/order")
+    public List<Coffee> orders() throws ExecutionException, InterruptedException {
+
+        Future<Coffee> future;
+        ArrayList<Coffee> orders = new ArrayList<Coffee>();
+        long started = System.currentTimeMillis();
+        final long invocationNumber = counter.getAndIncrement();
+
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
+
+        try {
+            future = executorService.submit(coffeeResource);
+            orders.add(future.get());
+            LOGGER.infof("CoffeeResource#Orders invocation #%d returning successfully", invocationNumber);
+        }catch (ExecutionException e){
+            String message = e.getClass().getSimpleName() + ": " + e.getMessage();
+            LOGGER.errorf("CoffeeResource#Orders invocation #%d failed: %s", invocationNumber, message);
+            return null;
+        }
+
+        return orders;
+
+    }
+
     /**
      * A fallback method for recommendations.
      */
@@ -168,7 +210,7 @@ public class CoffeeResource {
 
     private void randomDelay() throws InterruptedException {
         // introduce some artificial delay
-        Thread.sleep(new Random().nextInt(500));
+        sleep(new Random().nextInt(500));
     }
 
     void setFailRatio(Float failRatio) {
@@ -181,5 +223,18 @@ public class CoffeeResource {
 
     Long getCounter() {
         return counter.get();
+    }
+
+    @Override
+    @Bulkhead(4) // maximum 4 concurrent orders/requests allowed
+    public Coffee call() throws Exception {
+        try {
+            Thread.sleep(60000);
+        } catch (RuntimeException e) {
+            throw new RuntimeException(e);
+
+        }
+
+        return coffeeRepository.getOrder();
     }
 }
