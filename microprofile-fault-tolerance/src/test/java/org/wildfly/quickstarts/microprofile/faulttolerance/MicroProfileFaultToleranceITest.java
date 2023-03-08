@@ -16,6 +16,9 @@
  */
 package org.wildfly.quickstarts.microprofile.faulttolerance;
 
+import org.eclipse.microprofile.faulttolerance.Bulkhead;
+import org.eclipse.microprofile.faulttolerance.Fallback;
+import org.eclipse.microprofile.faulttolerance.Retry;
 import org.jboss.arquillian.container.test.api.Deployment;
 import org.jboss.arquillian.junit.Arquillian;
 import org.jboss.arquillian.test.api.ArquillianResource;
@@ -33,12 +36,24 @@ import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.Response;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static java.util.Arrays.asList;
 
 @RunWith(Arquillian.class)
-public class MicroProfileFaultToleranceIT {
+public class MicroProfileFaultToleranceITest {
 
     private static final String APP_NAME = "microprofile-fault-tolerance";
+
+    private AtomicInteger attempt = new AtomicInteger();
 
     @ArquillianResource
     private URL deploymentUrl;
@@ -110,6 +125,55 @@ public class MicroProfileFaultToleranceIT {
             Assert.assertEquals(500, response.getStatus());
         }
     }
+
+    /*@Test
+    public void testCoffeeOrders() {
+        ExecutorService executorService = Executors.newFixedThreadPool(4);
+
+        try (Response response = this.getResponse("order")) {
+            Assert.assertEquals(200, response.getStatus());
+
+            Callable<String> call = () -> callWithFallbackAndNoRetryOnBulkhead();
+            List<Future<String>> futures = executorService.invokeAll(asList(call, call, call));
+
+            List<String> results = collectResultsAssumingFailures(futures, 0);
+            Assert.assertEquals(futures.size(),3);
+            //Assert.assertThat(futures.get.get().contains("call0");
+            //assertThat(results).as("second call failed and was expected to be successful").contains("call1");
+            //assertThat(results).as("third call didn't fall back").anyMatch(t -> t.startsWith("fallback"));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            executorService.shutdownNow();
+        }
+
+    }
+
+    @Retry(retryOn = TimeoutException.class, delay = 500)
+    @Bulkhead(3)
+    public String callWithFallbackAndNoRetryOnBulkhead() throws InterruptedException {
+        int attempt = this.attempt.getAndIncrement();
+        if (attempt < 3) {
+            Thread.sleep(300L);
+        }
+        return "call" + attempt;
+    }
+
+    private List<String> collectResultsAssumingFailures(List<Future<String>> futures, int expectedFailureCount) {
+        int failureCount = 0;
+        List<String> resultList = new ArrayList<>();
+        for (Future<String> future : futures) {
+            try {
+                resultList.add(future.get());
+            } catch (InterruptedException | ExecutionException e) {
+                failureCount++;
+            }
+        }
+
+        Assert.assertEquals(failureCount,expectedFailureCount);
+        return resultList;
+    }*/
+
 
     private Response getResponse(String path) {
         return client.target(deploymentUrl.toString())

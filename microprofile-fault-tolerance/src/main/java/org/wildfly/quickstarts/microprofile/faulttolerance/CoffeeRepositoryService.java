@@ -16,18 +16,14 @@
  */
 package org.wildfly.quickstarts.microprofile.faulttolerance;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Random;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
-
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
-
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.jboss.logging.Logger;
 
