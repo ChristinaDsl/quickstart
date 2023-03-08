@@ -36,7 +36,7 @@ import java.net.URL;
 import java.util.List;
 
 @RunWith(Arquillian.class)
-public class MicroProfileFaultToleranceIT {
+public class MicroProfileFaultToleranceITest {
 
     private static final String APP_NAME = "microprofile-fault-tolerance";
 

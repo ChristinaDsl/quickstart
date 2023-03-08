@@ -47,6 +47,7 @@ import org.jboss.logging.Logger;
 import jakarta.ws.rs.PathParam;
 
 import static java.lang.Thread.sleep;
+import static java.util.Arrays.asList;
 
 /**
  * A JAX-RS resource that provides information about kinds of coffees we have on store and numbers of packages available.
@@ -57,7 +58,7 @@ import static java.lang.Thread.sleep;
 @Path("/coffee")
 @Produces(MediaType.APPLICATION_JSON)
 @ApplicationScoped
-public class CoffeeResource implements Callable {
+public class CoffeeResource {
 
     private static final Logger LOGGER = Logger.getLogger(CoffeeResource.class);
 
@@ -169,26 +170,41 @@ public class CoffeeResource implements Callable {
     @Path("/order")
     public List<Coffee> orders() throws ExecutionException, InterruptedException {
 
-        Future<Coffee> future;
+        List<Future<Coffee>> futures;
         ArrayList<Coffee> orders = new ArrayList<Coffee>();
-        long started = System.currentTimeMillis();
-        final long invocationNumber = counter.getAndIncrement();
 
-        ExecutorService executorService = Executors.newFixedThreadPool(5);
+        long invocationNumber;
 
-        try {
-            future = executorService.submit(coffeeResource);
-            orders.add(future.get());
-            LOGGER.infof("CoffeeResource#Orders invocation #%d returning successfully", invocationNumber);
-        }catch (ExecutionException e){
-            String message = e.getClass().getSimpleName() + ": " + e.getMessage();
-            LOGGER.errorf("CoffeeResource#Orders invocation #%d failed: %s", invocationNumber, message);
-            return null;
+        ExecutorService executorService = Executors.newFixedThreadPool(4);
+
+        Callable<Coffee> call = () -> getOrder();
+
+        futures= executorService.invokeAll(asList(call,call,call,call));
+        for (Future<Coffee> future : futures) {
+            invocationNumber = counter.getAndIncrement();
+            try {
+                orders.add(future.get());
+                LOGGER.infof("CoffeeResource#Orders invocation #%d returning successfully", invocationNumber);
+            } catch (InterruptedException | ExecutionException e) {
+                String message = e.getClass().getSimpleName() + ": " + e.getMessage();
+                LOGGER.errorf("CoffeeResource#Orders invocation #%d failed: %s", invocationNumber, message);
+            }
         }
 
         return orders;
 
     }
+
+    @Bulkhead(3) // maximum 3 concurrent orders/requests allowed
+    public Coffee getOrder() throws Exception {
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return coffeeRepository.getOrder();
+    }
+
 
     /**
      * A fallback method for recommendations.
@@ -225,16 +241,4 @@ public class CoffeeResource implements Callable {
         return counter.get();
     }
 
-    @Override
-    @Bulkhead(4) // maximum 4 concurrent orders/requests allowed
-    public Coffee call() throws Exception {
-        try {
-            Thread.sleep(60000);
-        } catch (RuntimeException e) {
-            throw new RuntimeException(e);
-
-        }
-
-        return coffeeRepository.getOrder();
-    }
 }
